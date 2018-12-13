@@ -39,17 +39,19 @@ public class PracticalBundler
                 }
 
                 var cast = obj as GameObject;
-               // Debug.Log(obj.GetType());
                 if (cast != null)
                 {
+                    GameObject original = GameObject.Instantiate(cast);
                     // Create Processed Prefab
                     GameObject mainParent = new GameObject();
+                    mainParent.name = cast.name;
                     GameObject parent = new GameObject();
                     parent.transform.SetParent(mainParent.transform);
-                    GameObject go = GameObject.Instantiate((GameObject)obj);
+                    parent.name = cast.name;
+                    GameObject go = GameObject.Instantiate(cast);
                     go.transform.SetParent(parent.transform);
                     go.transform.localPosition = Vector3.zero;
-
+                    go.name = cast.name;
 
                     // Delete Scripts
                     MonoBehaviour[] allScripts = mainParent.GetComponentsInChildren<MonoBehaviour>();
@@ -60,7 +62,7 @@ public class PracticalBundler
                     }
 
                     // Update Prefab
-                    var newfab = PrefabUtility.ReplacePrefab(parent, obj);
+                    GameObject newfab = PrefabUtility.ReplacePrefab(mainParent, obj, ReplacePrefabOptions.ReplaceNameBased);
                     assetName = newfab.name;
 
                     // Save the bundle
@@ -71,7 +73,7 @@ public class PracticalBundler
 
                     // Grab Thumbnail
                     RuntimePreviewGenerator.TransparentBackground = true;
-                    var preview = RuntimePreviewGenerator.GenerateModelPreview(parent.transform, 256, 256);
+                    var preview = RuntimePreviewGenerator.GenerateModelPreview(mainParent.transform, 256, 256);
                     if (preview != null)
                     {
                         byte[] bytes = preview.EncodeToPNG();
@@ -80,15 +82,20 @@ public class PracticalBundler
                         // Path for png
                         UnityEngine.Windows.File.WriteAllBytes(tempFolder + "/" + guidStr + "_" + newfab.name + ".png", bytes);
                     }
-                    GameObject.DestroyImmediate(mainParent);
+                    // Update Prefab to Original
+                    PrefabUtility.ReplacePrefab(original, newfab, ReplacePrefabOptions.ReplaceNameBased);
+
+                    // Destroy old objects
+                    GameObject.DestroyImmediate(go);
                     GameObject.DestroyImmediate(parent);
+                    GameObject.DestroyImmediate(mainParent);
+                    GameObject.DestroyImmediate(original);
                 }
 
                 DirectoryInfo directorySelected = new DirectoryInfo(tempFolder);
                 PracticalCompression.Compress(directorySelected, assetName);
             }
             // Build the resource file from the active selection.
-
         }
     }
 }
@@ -101,9 +108,6 @@ public class PracticalCompression
 {
     static public async Task<bool> WriteToFile(FileStream stream, string sDir, List<String> fileList)
     {
-        //using (BinaryWriter bw = new BinaryWriter(stream))
-        //{
-
         List<byte> allBytes = new List<byte>();
         foreach (string sFilePath in fileList)
         {
@@ -118,18 +122,14 @@ public class PracticalCompression
             for (int i = 0; i < 32; i++)
             {
                 byte c = (byte)((i < dataLength.Length) ? dataLength[i] : ' ');
-                //bw.Write(BitConverter.GetBytes(c), 0, 1);
-                //allBytes.AddRange(BitConverter.GetBytes(c));
                 allBytes.Add(c);
             }
 
             foreach (char c in filePath)
             {
                 byte b = (byte)c;
-                //allBytes.AddRange(BitConverter.GetBytes(c));
                 allBytes.Add(b);
             }
-                //bw.Write(BitConverter.GetBytes(c), 0, 1);
 
             byte[] dataBytes = File.ReadAllBytes(Path.Combine(sDir, sFilePath));
 
@@ -137,19 +137,14 @@ public class PracticalCompression
             for (int i = 0; i < 32; i++)
             {
                 byte c = (byte)((i < dataLength.Length) ? dataLength[i] : ' ');
-                //allBytes.AddRange(BitConverter.GetBytes(c));
                 allBytes.Add(c);
-                //bw.Write(BitConverter.GetBytes(c), 0, 1);
             }
 
-            //bw.Write(dataBytes, 0, dataBytes.Length);
             allBytes.AddRange(dataBytes);
 
             await stream.WriteAsync(allBytes.ToArray(), 0, allBytes.Count);
             allBytes = new List<byte>();
         }
-        //await stream.WriteAsync(allBytes.ToArray(),0,allBytes.Count);
-        //allBytes = new List<byte>();
 
         return true;
         //}
